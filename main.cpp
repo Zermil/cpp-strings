@@ -138,6 +138,7 @@ void parse_flag(const char* flag)
 	exit(1);	
     }
 
+    // TODO(Aiden): Separate logic from parsing.
     switch (flag_it->second)
     {
 	case Flag_type::FLAG_LEN: {
