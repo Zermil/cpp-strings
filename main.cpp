@@ -1,28 +1,28 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include <cstring>
 #include <vector>
 #include <cstdlib>
 #include <cctype>
 #include <unordered_map>
 
-std::vector<char> slurp(const char* filename);
-void parse_flag(const char* flag);
-
-static unsigned int SEARCH_LEN = 4;
-static std::string SEARCH_STR = "";
-
-// TODO(Aiden): There might be a better way to parse flags without the use of this map and enum.
-enum class Flag_type {
+// TODO(Aiden): There might be a better way to parse flags without this.
+enum class FLAG_TYPE {
     FLAG_LEN = 0,
     FLAG_SER,
 };
 
-static const std::unordered_map<std::string, Flag_type> FLAGS = {
-    { "n",   Flag_type::FLAG_LEN  },
-    { "ser", Flag_type::FLAG_SER  },
+static const std::unordered_map<std::string, FLAG_TYPE> FLAGS = {
+    { "n"  , FLAG_TYPE::FLAG_LEN },
+    { "ser", FLAG_TYPE::FLAG_SER },
 };
+
+static unsigned int SEARCH_LEN = 4;
+static std::string SEARCH_STR = "";
+
+std::vector<char> slurp(const char* filename);
+void parse_flag(const char* flag);
+void exec_flag(std::unordered_map<std::string, FLAG_TYPE>::const_iterator flag, const std::string& value);
 
 int main(int argc, char* argv[])
 {
@@ -41,8 +41,8 @@ int main(int argc, char* argv[])
     
     std::vector<char> characters = slurp(argv[1]);
     std::vector<std::string> strings;
-
     std::string current = "";
+    
     for (const char& c : characters) {
 	if (std::isprint(c)) {
 	    current += c;
@@ -85,8 +85,8 @@ std::vector<char> slurp(const char* filename)
 
     std::streamsize size = in.tellg();
     std::vector<char> buffer(size);
-
     in.seekg(0, std::ios::beg);
+    
     if (!in.read(buffer.data(), size)) {
 	std::cerr << "ERROR: Could not read file into memory, make sure the provided file is valid.\n";
 	in.close();
@@ -94,30 +94,29 @@ std::vector<char> slurp(const char* filename)
     }
 
     in.close();
+    
     return buffer;
 }
 
 void parse_flag(const char* flag)
 {
-    const size_t len = std::strlen(flag);
-	    
     if (flag[0] != '-') {
-	std::cerr << "ERROR: One of the provided flags does not begin with mins sign -> (\'-\')\n";
+	std::cerr << "ERROR: One of the provided flags does not begin with minus sign -> (\'-\')\n";
 	std::cerr << "    FLAG: " << flag;
 	exit(1);
     }
+    
+    const std::string flag_str = std::string(flag).substr(1);
+    const size_t eq_sign = flag_str.find('=');
+    
+    if (eq_sign == std::string::npos) {
+	std::cerr << "ERROR: Could not find equal sign -> (\'=\') in one of the provided flags.\n";
+	std::cerr << "    FLAG: " << flag;
+	exit(1);
+    }    
 
-    size_t flag_len = 1;
-    for (; flag[flag_len] != '='; ++flag_len) {
-	if (flag_len == len) {
-	    std::cerr << "ERROR: Could not find equal sign -> (\'=\') in one of the provided flags.\n";
-	    std::cerr << "    FLAG: " << flag;
-	    exit(1);
-	}
-    }
-
-    std::string flag_name = std::string(flag).substr(1, flag_len - 1);
-    auto flag_it = FLAGS.find(flag_name);
+    const std::string flag_name = flag_str.substr(0, eq_sign);
+    const auto flag_it = FLAGS.find(flag_name);
 
     if (flag_it == FLAGS.end()) {
 	std::cerr << "ERROR: Provided flag does not exists or was not recognized.\n";
@@ -125,34 +124,33 @@ void parse_flag(const char* flag)
 	exit(1);    	
     }
     	     
-    std::string value = "";
+    const std::string value = flag_str.substr(eq_sign + 1);
     
-    size_t parse_count = flag_len + 1;
-    for (; parse_count < len; ++parse_count) {
-	value += flag[parse_count];
-    }
-
     if (value.empty()) {
 	std::cerr << "ERROR: One of the provided flags does not have a value associated with it.\n";
 	std::cerr << "    FLAG: " << flag;
 	exit(1);	
     }
 
-    // TODO(Aiden): Separate logic from parsing.
-    switch (flag_it->second)
+    exec_flag(flag_it, value);
+}
+
+void exec_flag(std::unordered_map<std::string, FLAG_TYPE>::const_iterator flag, const std::string& value)
+{
+    switch (flag->second)
     {
-	case Flag_type::FLAG_LEN: {
+	case FLAG_TYPE::FLAG_LEN: {
 	    unsigned int new_len = std::atoi(value.c_str());
 	    
 	    if (new_len < 4 || new_len > 1024) {
-		std::cerr << "ERROR: Invalid value provided to flag: \"" << flag_name << "\" valid range is between 4 and 1024\n";
+		std::cerr << "ERROR: Invalid value provided to flag: \"" << flag->first << "\" valid range is between 4 and 1024\n";
 		exit(1);
 	    }
 
 	    SEARCH_LEN = new_len;
 	} break;
 
-	case Flag_type::FLAG_SER:
+	case FLAG_TYPE::FLAG_SER:
 	    SEARCH_STR = value;
 	    break;
     }
