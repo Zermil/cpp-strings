@@ -6,8 +6,8 @@ Copy of Linux's utility command "strings" in C++ created as a learning project/e
 Usage: strings [FILE] [OPTIONS]
 
 Options:\
-`-n`=min_string_size\
-`-ser`=search_for_string 
+`-n=[min_string_size]`\
+`-ser=[search_for_string]`
 
 ### Compile
 ```console
