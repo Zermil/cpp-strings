@@ -6,7 +6,12 @@
 #include <cctype>
 #include <unordered_map>
 
-// TODO(Aiden): There might be a better way to parse flags without this.
+// TODO(Aiden): There might be a better way to parse flags without map and enum.
+// TODO(Aiden): Have something like "context" for SEARCH_LEN & SEARCH_STR etc.
+// TODO(Aiden): Better error throwing, probably with enum for better readability.
+// TODO(Aiden): Parse flags without '=' like -> '-o' to produce output text file.
+// TODO(Aiden): Parse flag shoould probably return an iterator or something, for better readability.
+
 enum class FLAG_TYPE {
     FLAG_LEN = 0,
     FLAG_SER,
@@ -39,7 +44,7 @@ int main(int argc, char* argv[])
 	}
     }
     
-    std::vector<char> characters = slurp(argv[1]);
+    const std::vector<char> characters = slurp(argv[1]);
     std::vector<std::string> strings;
     std::string current = "";
     
