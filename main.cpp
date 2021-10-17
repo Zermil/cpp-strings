@@ -8,7 +8,6 @@
 #include <unordered_map>
 
 // TODO(Aiden): There might be a better way to parse flags without map and enum.
-// TODO(Aiden): Parse flag should probably return an iterator or something, for better readability.
 
 enum class ERROR_TYPE {
     ERROR_BEGIN = 0,
@@ -25,17 +24,21 @@ enum class FLAG_TYPE {
 };
 
 struct global_context {
+    const unsigned int VAL_MIN = 4;
+    const unsigned int VAL_MAX = 1024;
+
     unsigned int SEARCH_LEN = 4;
-    unsigned int VAL_MIN = 4;
-    unsigned int VAL_MAX = 1024;
     std::string SEARCH_STR = "";
     bool REQ_OUTPUT = false;
 } context;
 
-static const std::unordered_map<std::string, FLAG_TYPE> FLAGS = {
+static const std::unordered_map<std::string, FLAG_TYPE> VALUED_FLAGS = {
     { "n"  , FLAG_TYPE::FLAG_LEN },
     { "ser", FLAG_TYPE::FLAG_SER },
-    { "o"  , FLAG_TYPE::FLAG_OUT },
+};
+
+static const std::unordered_map<std::string, FLAG_TYPE> VALUELESS_FLAGS = {
+    { "o", FLAG_TYPE::FLAG_OUT },
 };
 
 typedef std::unordered_map<std::string, FLAG_TYPE>::const_iterator flag_iterator;
@@ -142,14 +145,11 @@ void parse_execute_flag(const char* flag)
     
     if (eq_sign == std::string::npos) {	
 	// NOTE(Aiden): Flag without associated value, try to parse it/find it. 
-	const flag_iterator valueless_flag = FLAGS.find(flag_str);
+	const flag_iterator valueless_flag = VALUELESS_FLAGS.find(flag_str);
 
-	if (valueless_flag != FLAGS.end()) {
+	if (valueless_flag != VALUELESS_FLAGS.end()) {
 	    execute_flag(valueless_flag);
 	    return;
-	} else {
-	    flag_throw_error(ERROR_TYPE::ERROR_RECOGNIZE, flag);
-	    exit(1);	    
 	}
 	
 	flag_throw_error(ERROR_TYPE::ERROR_EQUAL, flag);
@@ -157,9 +157,9 @@ void parse_execute_flag(const char* flag)
     }    
 
     const std::string flag_name = flag_str.substr(0, eq_sign);
-    const flag_iterator valued_flag = FLAGS.find(flag_name);
+    const flag_iterator valued_flag = VALUED_FLAGS.find(flag_name);
 
-    if (valued_flag == FLAGS.end()) {
+    if (valued_flag == VALUED_FLAGS.end()) {
 	flag_throw_error(ERROR_TYPE::ERROR_RECOGNIZE, flag);
 	exit(1);    	
     }
@@ -226,7 +226,7 @@ void flag_throw_error(ERROR_TYPE err, const char* flag_name)
 	    break;
 	    
 	case ERROR_TYPE::ERROR_RECOGNIZE:
-	    std::cerr << "ERROR: Provided flag does not exists or was not recognized.\n";
+	    std::cerr << "ERROR: Provided flag does not exists or was not recognized as valid flag with associated value,\ncheck if provided flag requires value.\n";
 	    std::cerr << "    FLAG: " << flag_name;
 	    break;
 	    
@@ -246,8 +246,9 @@ void flag_throw_error(ERROR_TYPE err, const char* flag_name)
 
 void usage()
 {
-    std::cerr << "Usage: strings [FILE] [OPTIONS]\n";
-    std::cerr << "    -n=<number>   -> minimum size of a string to display (min: 4, max: 1024)\n";
-    std::cerr << "    -ser=<string> -> search for specified string in file\n";
-    std::cerr << "    -o            -> outputs everything to \".txt\" file with the name [FILE]_out\n";
+    std::cout << "Usage: ./strings [FILE] [OPTIONS]\n";
+    std::cout << "    -n=<number>   -> minimum size of a string to display (min: 4, max: 1024)\n";
+    std::cout << "    -ser=<string> -> search for specified string in file\n";
+    std::cout << "    -o            -> outputs everything to \".txt\" file with the name [FILE]_out.txt\n";
+    std::cout << "                     (does not output to terminal/console window)\n";
 }
