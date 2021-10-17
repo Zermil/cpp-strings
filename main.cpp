@@ -11,6 +11,7 @@
 // TODO(Aiden): Better error throwing, accroding to whether or not flag requires an equal sign.
 // TODO(Aiden): Better flag parsing, find flag at the beginning and treat accordingly.
 // TODO(Aiden): Would be better to have something like "flag_desc" structure.
+// TODO(Aiden): Put "the big condition" in main, to bool variable, since it's used twice, changing it is a pain.
 
 enum class ERROR_TYPE {
     ERROR_BEGIN = 0,
