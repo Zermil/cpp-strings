@@ -6,8 +6,9 @@ Copy of Linux's utility command "strings" in C++ created as a learning project/e
 Usage: strings [FILE] [OPTIONS]
 
 Options:\
-`-n=[min_string_size]`\
-`-ser=[search_for_string]`
+`-n=[min_string_size]` -> spicifies minimum size of output string\
+`-ser=[search_string]` -> output only the strings that contain [search_string]\
+`-o` -> don't output to console, but to text file instead (text file's name is [FILE]_out.txt)  
 
 ### Compile
 ```console
