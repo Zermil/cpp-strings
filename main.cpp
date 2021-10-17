@@ -198,6 +198,7 @@ void execute_flag(flag_iterator flag, const std::string& value)
 
 	default:
 	    assert(false && "Unrecognized flag provided.\n");
+	    exit(1);
     }
 }
 
@@ -211,6 +212,7 @@ void execute_flag(flag_iterator flag)
 	    
 	default:
 	    assert(false && "Unrecognized flag provided.\n");
+	    exit(1);
     }
 }
 
@@ -244,6 +246,7 @@ void flag_throw_error(ERROR_TYPE err, const char* flag_name)
 	    
 	default:
 	    assert(false && "Unknown error thrown.\n");
+	    exit(1);
     }
 }
 
