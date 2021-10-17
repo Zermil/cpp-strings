@@ -8,6 +8,9 @@
 #include <unordered_map>
 
 // TODO(Aiden): There might be a better way to parse flags without map and enum.
+// TODO(Aiden): Better error throwing, accroding to whether or not flag requires an equal sign.
+// TODO(Aiden): Better flag parsing, find flag at the beginning and treat accordingly.
+// TODO(Aiden): Would be better to have something like "flag_desc" structure.
 
 enum class ERROR_TYPE {
     ERROR_BEGIN = 0,
@@ -25,7 +28,7 @@ enum class FLAG_TYPE {
 
 struct global_context {
     const unsigned int VAL_MIN = 4;
-    const unsigned int VAL_MAX = 1024;
+    const unsigned int VAL_MAX = 256;
 
     unsigned int SEARCH_LEN = 4;
     std::string SEARCH_STR = "";
@@ -247,7 +250,7 @@ void flag_throw_error(ERROR_TYPE err, const char* flag_name)
 void usage()
 {
     std::cout << "Usage: ./strings [FILE] [OPTIONS]\n";
-    std::cout << "    -n=<number>   -> minimum size of a string to display (min: 4, max: 1024)\n";
+    std::cout << "    -n=<number>   -> minimum size of a string to display (min: " << context.VAL_MIN <<  ", max: " << context.VAL_MAX << ")\n";
     std::cout << "    -ser=<string> -> search for specified string in file\n";
     std::cout << "    -o            -> outputs everything to \".txt\" file with the name [FILE]_out.txt\n";
     std::cout << "                     (does not output to terminal/console window)\n";
