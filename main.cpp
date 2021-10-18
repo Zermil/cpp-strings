@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <cstring>
 #include <string>
 #include <vector>
 #include <cstdlib>
@@ -70,6 +71,13 @@ int main(int argc, char* argv[])
 	exit(1);
     }
 
+    if (argc == 2
+	&& (std::strcmp(argv[1], "--help") == 0 || std::strcmp(argv[1], "-h") == 0))
+    {
+	usage();
+	exit(1);
+    }
+    
     if (argc > 2) {
 	for (int i = 0; i < argc - 2; ++i) {
 	    flag_desc desc = parse_flag(argv[2 + i]);
