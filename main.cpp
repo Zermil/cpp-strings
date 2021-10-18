@@ -10,6 +10,8 @@
 
 // NOTE(Aiden): There might be a different way to parse flags without map and enum.
 
+// TODO(Aiden): Flag for "at which line is this string" -> -d
+
 enum class ERROR_TYPE {
     ERROR_BEGIN = 0,
     ERROR_EQUAL,
