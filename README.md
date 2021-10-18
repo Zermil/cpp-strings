@@ -3,7 +3,7 @@ Copy of Linux's utility command "strings" in C++ created as a learning project/e
 [Actual Linux "strings" command](https://man7.org/linux/man-pages/man1/strings.1.html)
 
 ## Quick start
-Usage: strings [FILE] [OPTIONS]
+Usage: ./strings [FILE] [OPTIONS]
 
 Options:\
 `-n=[min_string_size]` -> spicifies minimum size of output string\

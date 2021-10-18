@@ -8,7 +8,7 @@
 #include <cctype>
 #include <unordered_map>
 
-// NOTE(Aiden): There might be a better way to parse flags without map and enum.
+// NOTE(Aiden): There might be a different way to parse flags without map and enum.
 
 enum class ERROR_TYPE {
     ERROR_BEGIN = 0,
@@ -195,7 +195,7 @@ void execute_flag(const flag_iterator& flag, const std::string& value)
     switch (flag->second)
     {
 	case FLAG_TYPE::FLAG_LEN: {
-	    unsigned int new_len = std::atoi(value.c_str());
+	    const unsigned int new_len = std::atoi(value.c_str());
 	    
 	    if (new_len < context.VAL_MIN || new_len > context.VAL_MAX) {
 		flag_throw_error(ERROR_TYPE::ERROR_RANGE, flag->first.c_str());
