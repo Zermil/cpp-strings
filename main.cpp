@@ -66,26 +66,18 @@ inline bool should_be_added(const std::string& current) noexcept
 
 int main(int argc, char* argv[])
 {
-    if (argc == 1) {
-	usage();
-	exit(1);
-    }
-
-    if (argc == 2
-	&& (std::strcmp(argv[1], "--help") == 0 || std::strcmp(argv[1], "-h") == 0))
-    {
+    const bool help_flag_set = (argc == 2 && (std::strcmp(argv[1], "--help") == 0 || std::strcmp(argv[1], "-h") == 0));
+    if (argc == 1 || help_flag_set) {
 	usage();
 	exit(1);
     }
     
     const std::vector<char> characters = slurp(argv[1]);
-    if (argc > 2) {
-	for (int i = 0; i < argc - 2; ++i) {
-	    flag_desc desc = parse_flag(argv[2 + i]);
+    for (int i = 0; i < argc - 2; ++i) {
+	flag_desc desc = parse_flag(argv[2 + i]);
 
-	    if (desc.require_value) execute_flag(desc.flag_place, desc.value);
-	    else execute_flag(desc.flag_place);
-	}
+	if (desc.require_value) execute_flag(desc.flag_place, desc.value);
+	else execute_flag(desc.flag_place);
     }
     
     std::vector<std::string> strings;
@@ -159,9 +151,7 @@ flag_desc parse_flag(const char* flag)
     }
 
     flag_desc flag_description = {};
-
     const std::string flag_name = std::string(flag).substr(1);
-    const flag_iterator valueless_flag_it = VALUELESS_FLAGS.find(flag_name);
 
     const size_t eq_sign = flag_name.find('=');
     if (eq_sign != std::string::npos) {
@@ -186,7 +176,8 @@ flag_desc parse_flag(const char* flag)
 
 	return flag_description;
     }
-
+    
+    const flag_iterator valueless_flag_it = VALUELESS_FLAGS.find(flag_name);
     if (valueless_flag_it == VALUELESS_FLAGS.end()) {
 	flag_throw_error(ERROR_TYPE::ERROR_EQUAL, flag_name.c_str());
 	exit(1);
