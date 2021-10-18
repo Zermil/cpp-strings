@@ -53,8 +53,8 @@ struct flag_desc {
 std::vector<char> slurp(const char* filename);
 void flag_throw_error(ERROR_TYPE err, const char* flag_name);
 flag_desc parse_flag(const char* flag);
-void execute_flag(flag_iterator flag, const std::string& value);
-void execute_flag(flag_iterator flag);
+void execute_flag(const flag_iterator& flag, const std::string& value);
+void execute_flag(const flag_iterator& flag);
 void usage();
 
 inline bool should_be_added(const std::string& current) noexcept
@@ -78,6 +78,7 @@ int main(int argc, char* argv[])
 	exit(1);
     }
     
+    const std::vector<char> characters = slurp(argv[1]);
     if (argc > 2) {
 	for (int i = 0; i < argc - 2; ++i) {
 	    flag_desc desc = parse_flag(argv[2 + i]);
@@ -87,7 +88,6 @@ int main(int argc, char* argv[])
 	}
     }
     
-    const std::vector<char> characters = slurp(argv[1]);
     std::vector<std::string> strings;
     std::string current = std::string();
     
@@ -199,7 +199,7 @@ flag_desc parse_flag(const char* flag)
     return flag_description;
 }
 
-void execute_flag(flag_iterator flag, const std::string& value)
+void execute_flag(const flag_iterator& flag, const std::string& value)
 {
     switch (flag->second)
     {
@@ -224,7 +224,7 @@ void execute_flag(flag_iterator flag, const std::string& value)
     }
 }
 
-void execute_flag(flag_iterator flag)
+void execute_flag(const flag_iterator& flag)
 {
     switch (flag->second)
     {
