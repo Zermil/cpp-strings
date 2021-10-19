@@ -293,7 +293,8 @@ void usage()
 {
     std::cout << "Usage: ./strings [FILE] [OPTIONS]\n";
     std::cout << "    -n=<number>   -> minimum size of a string to display (min: " << context.VAL_MIN <<  ", max: " << context.VAL_MAX << ")\n";
-    std::cout << "    -ser=<string> -> search for specified string in file\n";
+    std::cout << "    -s=<string>   -> search for specified string in file\n";
     std::cout << "    -o            -> outputs everything to \".txt\" file with the name [FILE]_out.txt\n";
     std::cout << "                     (does not output to terminal/console window)\n";
+    std::cout << "    -d            -> display line number, outputs at which line a particular string was found.\n";
 }
