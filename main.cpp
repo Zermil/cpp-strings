@@ -101,9 +101,8 @@ int main(int argc, char* argv[])
     std::string current = std::string();
 	
     for (const char& c : slurped_file) {
-	if (c == '\n') {
+	if (c == '\n' && context.REQ_DISPLAY) {
 	    context.LINE_NUMBER++;
-	    continue;
 	}
 
 	if (std::isprint(c)) {
@@ -137,7 +136,7 @@ int main(int argc, char* argv[])
 	    std::cout << str << '\n';
 	}	
     }
-    
+
     return 0;
 }
 
