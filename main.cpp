@@ -12,30 +12,30 @@
 // NOTE(Aiden): There might be a different way to parse flags without map and enum.
 
 enum class ERROR_TYPE {
-    ERROR_BEGIN = 0,
-    ERROR_EQUAL,
-    ERROR_VALUE,
+    ERROR_BAD_BEGIN = 0,
+    ERROR_MISSING_EQUAL,
+    ERROR_VALUE_EMPTY,
     ERROR_RANGE,
-    ERROR_NOVALUE,
+    ERROR_NO_VALUE_NEEDED,
 };
 
 enum class FLAG_TYPE {
-    FLAG_LEN = 0,
-    FLAG_SER,
-    FLAG_OUT,
-    FLAG_DIS,
+    FLAG_LENGTH = 0,
+    FLAG_SEARCH,
+    FLAG_OUTPUT,
+    FLAG_DISPLAY,
 };
 
 static const std::unordered_map<std::string_view, FLAG_TYPE> VALUED_FLAGS = {
-    { "n", FLAG_TYPE::FLAG_LEN },
-    { "s", FLAG_TYPE::FLAG_SER },
+    { "n", FLAG_TYPE::FLAG_LENGTH },
+    { "s", FLAG_TYPE::FLAG_SEARCH },
 };
 
 static const std::unordered_map<std::string_view, FLAG_TYPE> VALUELESS_FLAGS = {
-    { "o", FLAG_TYPE::FLAG_OUT },
+    { "o", FLAG_TYPE::FLAG_OUTPUT },
 
-    { "d",        FLAG_TYPE::FLAG_DIS },
-    { "-display", FLAG_TYPE::FLAG_DIS },
+    { "d",        FLAG_TYPE::FLAG_DISPLAY },
+    { "-display", FLAG_TYPE::FLAG_DISPLAY },
 };
 
 typedef std::unordered_map<std::string_view, FLAG_TYPE>::const_iterator flag_iterator;
@@ -53,31 +53,26 @@ struct global_context {
     size_t LINE_NUMBER = 0;
 } context;
 
-struct flag_desc {
-    flag_iterator flag_place;
-    std::string value;
-    bool require_value;
-};
-
 std::vector<char> slurp(const char* filename);
-void flag_throw_error(ERROR_TYPE err, std::string_view flag_name);
-flag_desc parse_flag(const char* flag);
+void parse_and_execute_flag(const char* flag);
 void execute_flag(flag_iterator flag, const std::string& value);
 void execute_flag(flag_iterator flag);
+void flag_throw_error(ERROR_TYPE err, std::string_view flag_name);
 void usage();
 
-inline bool should_be_added(const std::string& current) noexcept
+inline bool should_be_added(const std::string& current)
 {
     return !current.empty()
 	&& current.length() >= context.SEARCH_LEN
 	&& current.find(context.SEARCH_STR) != std::string::npos;
 }
 
-inline void add_based_on_context(std::vector<std::string>& strings, std::string& current)
+inline void add_based_on_context(std::vector<std::string>& strings, std::string& current) noexcept
 {
-    if (context.REQ_DISPLAY)
+    if (context.REQ_DISPLAY) {
 	current += (" -> line: " + std::to_string(context.LINE_NUMBER + 1));
-
+    }
+	
     strings.emplace_back(current);
 }
 
@@ -91,12 +86,7 @@ int main(int argc, char* argv[])
     
     const std::vector<char> slurped_file = slurp(argv[1]);
     for (int i = 0; i < argc - 2; ++i) {
-	flag_desc desc = parse_flag(argv[2 + i]);
-
-	if (desc.require_value)
-	    execute_flag(desc.flag_place, desc.value);
-	else
-	    execute_flag(desc.flag_place);
+	parse_and_execute_flag(argv[i + 2]);
     }
     
     std::vector<std::string> strings;
@@ -166,59 +156,51 @@ std::vector<char> slurp(const char* filename)
     return buffer;
 }
 
-flag_desc parse_flag(const char* flag)
+void parse_and_execute_flag(const char* flag)
 {
     if (flag[0] != '-') {
-	flag_throw_error(ERROR_TYPE::ERROR_BEGIN, flag);
+	flag_throw_error(ERROR_TYPE::ERROR_BAD_BEGIN, flag);
 	exit(1);
     }
 
-    flag_desc flag_description = {};
-    const std::string flag_name = std::string(flag).substr(1);
+    std::string flag_name = std::string(flag).substr(1);
+    flag_iterator valueless_flag_it = VALUELESS_FLAGS.find(flag_name);
 
-    const size_t eq_sign = flag_name.find('=');
-    if (eq_sign != std::string::npos) {
-	const std::string valued_flag_name = flag_name.substr(0, eq_sign);
-	const flag_iterator valued_flag_it = VALUED_FLAGS.find(valued_flag_name);
+    size_t equal_sign_pos = flag_name.find('=');
+    bool eq_sign_found = equal_sign_pos != std::string::npos;
+
+    if (!eq_sign_found && valueless_flag_it == VALUELESS_FLAGS.end()) {
+	flag_throw_error(ERROR_TYPE::ERROR_MISSING_EQUAL, flag_name);
+	exit(1);
+    }
+    
+    if (eq_sign_found) {
+	std::string valued_flag_name = flag_name.substr(0, equal_sign_pos);
+	flag_iterator valued_flag_it = VALUED_FLAGS.find(valued_flag_name);
+	std::string flag_value = flag_name.substr(equal_sign_pos + 1);
 
 	if (valued_flag_it == VALUED_FLAGS.end()) {
-	    flag_throw_error(ERROR_TYPE::ERROR_NOVALUE, flag_name);
-	    exit(1);
-	}
-
-	const std::string flag_value = flag_name.substr(eq_sign + 1);
-
-	if (flag_value.empty()) {
-	    flag_throw_error(ERROR_TYPE::ERROR_VALUE, flag_name);
+	    flag_throw_error(ERROR_TYPE::ERROR_NO_VALUE_NEEDED, flag_name);
 	    exit(1);
 	}
 	
-	flag_description.flag_place = valued_flag_it;
-	flag_description.value = flag_value;
-	flag_description.require_value = true;
-
-	return flag_description;
+	if (flag_value.empty()) {
+	    flag_throw_error(ERROR_TYPE::ERROR_VALUE_EMPTY, flag_name);
+	    exit(1);
+	}
+	
+	execute_flag(valued_flag_it, flag_value);
+    } else {
+	execute_flag(valueless_flag_it);
     }
-    
-    const flag_iterator valueless_flag_it = VALUELESS_FLAGS.find(flag_name);
-    if (valueless_flag_it == VALUELESS_FLAGS.end()) {
-	flag_throw_error(ERROR_TYPE::ERROR_EQUAL, flag_name);
-	exit(1);
-    }
-    
-    flag_description.flag_place = valueless_flag_it;
-    flag_description.value = std::string();
-    flag_description.require_value = false;
-    
-    return flag_description;
 }
 
 void execute_flag(flag_iterator flag, const std::string& value)
 {
     switch (flag->second)
     {
-	case FLAG_TYPE::FLAG_LEN: {
-	    const unsigned int new_len = std::atoi(value.c_str());
+	case FLAG_TYPE::FLAG_LENGTH: {
+	    unsigned int new_len = std::atoi(value.c_str());
 	    
 	    if (new_len < context.VAL_MIN || new_len > context.VAL_MAX) {
 		flag_throw_error(ERROR_TYPE::ERROR_RANGE, flag->first);
@@ -228,7 +210,7 @@ void execute_flag(flag_iterator flag, const std::string& value)
 	    context.SEARCH_LEN = new_len;
 	} break;
 
-	case FLAG_TYPE::FLAG_SER:
+	case FLAG_TYPE::FLAG_SEARCH:
 	    context.SEARCH_STR = value;
 	    break;
 
@@ -242,11 +224,11 @@ void execute_flag(flag_iterator flag)
 {
     switch (flag->second)
     {
-	case FLAG_TYPE::FLAG_OUT:
+	case FLAG_TYPE::FLAG_OUTPUT:
 	    context.REQ_OUTPUT = true;
 	    break;
 
-	case FLAG_TYPE::FLAG_DIS:
+	case FLAG_TYPE::FLAG_DISPLAY:
 	    context.REQ_DISPLAY = true;
 	    break;
 	    
@@ -260,17 +242,17 @@ void flag_throw_error(ERROR_TYPE err, std::string_view flag_name)
 {
     switch (err)
     {
-	case ERROR_TYPE::ERROR_BEGIN:
+	case ERROR_TYPE::ERROR_BAD_BEGIN:
 	    std::cerr << "ERROR: One of the provided flags does not begin with minus sign -> (\'-\')\n";
 	    std::cerr << "    FLAG: " << flag_name << '\n';
 	    break;
 	    
-	case ERROR_TYPE::ERROR_EQUAL:
+	case ERROR_TYPE::ERROR_MISSING_EQUAL:
 	    std::cerr << "ERROR: Could not find equal sign -> (\'=\') in one of the provided flags, possible invalid flag.\n";
 	    std::cerr << "    FLAG: " << flag_name << '\n';
 	    break;
 	    
-	case ERROR_TYPE::ERROR_VALUE:
+	case ERROR_TYPE::ERROR_VALUE_EMPTY:
 	    std::cerr << "ERROR: One of the provided flags does not have a value associated with it.\n";
 	    std::cerr << "    FLAG: " << flag_name << '\n';
 	    break;
@@ -279,7 +261,7 @@ void flag_throw_error(ERROR_TYPE err, std::string_view flag_name)
 	    std::cerr << "ERROR: Invalid value provided to flag: \"" << flag_name << "\" valid range is between " << context.VAL_MIN << " and " << context.VAL_MAX << '\n';
 	    break;
 
-	case ERROR_TYPE::ERROR_NOVALUE:
+	case ERROR_TYPE::ERROR_NO_VALUE_NEEDED:
 	    std::cerr << "ERROR: Provided flag most likely does not need an equal sign -> (\'=\')/value, possible invalid flag.\n";
 	    std::cerr << "    FLAG: " << flag_name << '\n';
 	    break;
