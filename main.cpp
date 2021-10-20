@@ -33,7 +33,9 @@ static const std::unordered_map<std::string_view, FLAG_TYPE> VALUED_FLAGS = {
 
 static const std::unordered_map<std::string_view, FLAG_TYPE> VALUELESS_FLAGS = {
     { "o", FLAG_TYPE::FLAG_OUT },
-    { "d", FLAG_TYPE::FLAG_DIS },
+
+    { "d",        FLAG_TYPE::FLAG_DIS },
+    { "-display", FLAG_TYPE::FLAG_DIS },
 };
 
 typedef std::unordered_map<std::string_view, FLAG_TYPE>::const_iterator flag_iterator;
@@ -295,5 +297,5 @@ void usage()
     std::cout << "    -s=<string>   -> search for specified string in file\n";
     std::cout << "    -o            -> outputs everything to \".txt\" file with the name [FILE]_out.txt\n";
     std::cout << "                     (does not output to terminal/console window)\n";
-    std::cout << "    -d            -> display line number, outputs at which line a particular string was found.\n";
+    std::cout << "    -d --display  -> display line number, outputs at which line a particular string was found.\n";
 }
