@@ -67,7 +67,7 @@ inline bool should_be_added(const std::string& current)
 	&& current.find(context.SEARCH_STR) != std::string::npos;
 }
 
-inline void add_based_on_context(std::vector<std::string>& strings, std::string& current) noexcept
+inline void add_based_on_context(std::vector<std::string>& strings, std::string& current)
 {
     if (context.REQ_DISPLAY) {
 	current += (" -> line: " + std::to_string(context.LINE_NUMBER + 1));
