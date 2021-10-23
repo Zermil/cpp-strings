@@ -10,6 +10,7 @@
 #include <unordered_map>
 
 // NOTE(Aiden): There might be a different way to parse flags without map and enum.
+// TODO(Aiden): In the future add support for large files (read in chunks and display them)
 
 enum class ERROR_TYPE {
     ERROR_BAD_BEGIN = 0,
