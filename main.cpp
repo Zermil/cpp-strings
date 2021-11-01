@@ -1,16 +1,17 @@
 #include <iostream>
-#include <fstream>
+#include <cstdio>
 #include <cstring>
 #include <string>
 #include <string_view>
 #include <vector>
 #include <cstdlib>
 #include <cassert>
+#include <conio.h>
 #include <cctype>
 #include <unordered_map>
 
 // NOTE(Aiden): There might be a different way to parse flags without map and enum.
-// TODO(Aiden): In the future add support for large files (read in chunks and display them)
+// TODO(Aiden): Instead of loading the entire "big file" into memory, read it also in chunks. 
 
 enum class ERROR_TYPE {
     ERROR_BAD_BEGIN = 0,
@@ -44,6 +45,7 @@ typedef std::unordered_map<std::string_view, FLAG_TYPE>::const_iterator flag_ite
 struct global_context {
     const unsigned int VAL_MIN = 4;
     const unsigned int VAL_MAX = 256;
+    const unsigned int MAX_STRINGS_CAP = 640000; // Should be enough for anybody.
 
     unsigned int SEARCH_LEN = 4;
     std::string SEARCH_STR = std::string();
@@ -54,11 +56,20 @@ struct global_context {
     size_t LINE_NUMBER = 0;
 } context;
 
-std::vector<char> slurp(const char* filename);
+struct slurped_file {
+    const char* data;
+    size_t size;
+};
+
+slurped_file slurp(const char* filename);
 void parse_and_execute_flag(const char* flag);
 void execute_flag(flag_iterator flag, const std::string& value);
 void execute_flag(flag_iterator flag);
 void flag_throw_error(ERROR_TYPE err, std::string_view flag_name);
+std::vector<std::string> get_strings_from_file(const slurped_file& slurped_file, size_t size, size_t offset);
+void parse_file_in_chunks(const slurped_file& slurped_file);
+void parse_file_normally(const slurped_file& slurped_file, const char* file_base);
+void output_based_on_context(const std::vector<std::string>& strings, const char* file_base);
 void usage();
 
 inline bool should_be_added(const std::string& current)
@@ -85,76 +96,58 @@ int main(int argc, char* argv[])
 	exit(1);
     }
     
-    const std::vector<char> slurped_file = slurp(argv[1]);
+    const slurped_file slurped_file = slurp(argv[1]);
     for (int i = 0; i < argc - 2; ++i) {
 	parse_and_execute_flag(argv[i + 2]);
     }
-    
-    std::vector<std::string> strings;
-    std::string current = std::string();
-	
-    for (const char& c : slurped_file) {
-	if (c == '\n' && context.REQ_DISPLAY) {
-	    context.LINE_NUMBER++;
-	}
 
-	if (std::isprint(c)) {
-	    current += c;
-	    continue;
-	}
-    
-	if (should_be_added(current)) {
-	    add_based_on_context(strings, current);
-	}
-	
-	current = std::string();
-    }
-
-    // Catch at EOF
-    if (should_be_added(current)) {
-	add_based_on_context(strings, current);
-    }
-
-    if (context.REQ_OUTPUT) {
-	const std::string out_filename = std::string(argv[1]) + "_out.txt";
-	std::ofstream out(out_filename);
-	
-	for (const std::string& str : strings) {
-	    out << str << '\n';
-	}
-
-	out.close();
+    if (slurped_file.size > context.MAX_STRINGS_CAP) {
+	parse_file_in_chunks(slurped_file);
     } else {
-	for (const std::string& str : strings) {
-	    std::cout << str << '\n';
-	}	
+	parse_file_normally(slurped_file, argv[1]);
     }
 
     return 0;
 }
 
-std::vector<char> slurp(const char* filename)
+slurped_file slurp(const char* filename)
 {
-    std::ifstream in(filename, std::ios::binary | std::ios::ate);
+    FILE* in = fopen(filename, "rb");
 
-    if (!in.is_open()) {
+    if (in == nullptr) {
 	std::cerr << "ERROR: Invalid file provided, make sure the file exists and is valid.\n";
 	exit(1);
     }
 
-    std::streamsize data_size = in.tellg();
-    std::vector<char> buffer(data_size);
-    in.seekg(0, std::ios::beg);
+    fseek(in, 0, SEEK_END);
+    size_t data_size = ftell(in);
+    fseek(in, 0, SEEK_SET);
+    
+    char* buffer = new char[data_size];
 
-    if (!in.read(buffer.data(), data_size)) {
-	std::cerr << "ERROR: Could not read file into memory, make sure the provided file is valid.\n";
-	in.close();
+    if (buffer == nullptr) {
+	std::cerr << "ERROR: Could not allocate enough memory for buffer.\n";
+	fclose(in);
+	delete[] buffer;
 	exit(1);
     }
     
-    in.close();
+    if (fread(buffer, 1, data_size, in) == 0) {
+	std::cerr << "ERROR: Could not read file into memory, make sure the provided file is valid.\n";
+	fclose(in);
+	delete[] buffer;
+	exit(1);
+    }
+
+    buffer[data_size] = '\0';
+    fclose(in);
     
-    return buffer;
+    slurped_file slurped_file = {
+	buffer,
+	data_size
+    };
+    
+    return slurped_file;
 }
 
 void parse_and_execute_flag(const char* flag)
@@ -270,6 +263,96 @@ void flag_throw_error(ERROR_TYPE err, std::string_view flag_name)
 	default:
 	    assert(false && "Unknown error thrown.\n");
 	    exit(1);
+    }
+}
+
+void parse_file_normally(const slurped_file& slurped_file, const char* file_base)
+{
+    std::vector<std::string> strings = get_strings_from_file(slurped_file, slurped_file.size, 0); 
+    delete[] slurped_file.data;
+    
+    output_based_on_context(strings, file_base);
+}
+
+void parse_file_in_chunks(const slurped_file& slurped_file)
+{
+    size_t current_size_read = 0;
+    bool is_running = true;
+    char c;
+    
+    while (current_size_read <= slurped_file.size && is_running) {
+	std::vector<std::string> strings = get_strings_from_file(slurped_file, context.MAX_STRINGS_CAP, current_size_read);
+
+	// Contents of large files are only displayed in console/terminal
+	for (const std::string& str : strings) {
+	    std::cout << str << '\n';
+	}
+ 
+	std::cout << "File too large, displaying to console/terminal, press \'[ANY KEY]\' to continue and \'[Q]\' to exit.\n";
+        c = _getch();
+
+	switch (c) {
+	    case 113:
+	    case 81:
+		is_running = false;
+		break;
+	}
+	
+	current_size_read += (context.MAX_STRINGS_CAP + 1);
+    }
+
+    delete[] slurped_file.data;
+}
+
+std::vector<std::string> get_strings_from_file(const slurped_file& slurped_file, size_t size, size_t offset)
+{
+    std::vector<std::string> strings;
+    strings.reserve(size);
+    
+    std::string current = std::string();
+	
+    for (size_t i = 0; i < size; ++i) {
+	const char c = slurped_file.data[offset + i];
+	
+	if (c == '\n' && context.REQ_DISPLAY) {
+	    context.LINE_NUMBER++;
+	}
+
+	if (std::isprint(c)) {
+	    current += c;
+	    continue;
+	}
+    
+	if (should_be_added(current)) {
+	    add_based_on_context(strings, current);
+	}
+	
+	current = std::string();
+    }
+
+    // Catch at EOF
+    if (should_be_added(current)) {
+	add_based_on_context(strings, current);
+    }
+
+    return strings;
+}
+
+void output_based_on_context(const std::vector<std::string>& strings, const char* file_base)
+{    
+    if (context.REQ_OUTPUT) {
+	const std::string out_filename = std::string(file_base) + "_out.txt";
+	FILE* file = fopen(out_filename.c_str(), "w");
+	
+	for (const std::string& str : strings) {
+	    fprintf(file, "%s\n", str.c_str());
+	}
+
+	fclose(file);
+    } else {
+	for (const std::string& str : strings) {
+	    std::cout << str << '\n';
+	}
     }
 }
 
