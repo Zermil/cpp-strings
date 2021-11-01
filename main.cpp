@@ -68,7 +68,6 @@ void execute_flag(flag_iterator flag);
 void flag_throw_error(ERROR_TYPE err, std::string_view flag_name);
 std::vector<std::string> get_strings_from_file(const slurped_file& slurped_file, size_t size, size_t offset);
 void parse_file_in_chunks(const slurped_file& slurped_file);
-void parse_file_normally(const slurped_file& slurped_file, const char* file_base);
 void output_based_on_context(const std::vector<std::string>& strings, const char* file_base);
 void usage();
 
@@ -104,7 +103,10 @@ int main(int argc, char* argv[])
     if (slurped_file.size > context.MAX_STRINGS_CAP) {
 	parse_file_in_chunks(slurped_file);
     } else {
-	parse_file_normally(slurped_file, argv[1]);
+	std::vector<std::string> strings = get_strings_from_file(slurped_file, slurped_file.size, 0); 
+	delete[] slurped_file.data;
+
+	output_based_on_context(strings, argv[1]);
     }
 
     return 0;
@@ -128,7 +130,6 @@ slurped_file slurp(const char* filename)
     if (buffer == nullptr) {
 	std::cerr << "ERROR: Could not allocate enough memory for buffer.\n";
 	fclose(in);
-	delete[] buffer;
 	exit(1);
     }
     
@@ -139,9 +140,9 @@ slurped_file slurp(const char* filename)
 	exit(1);
     }
 
-    buffer[data_size] = '\0';
     fclose(in);
     
+    buffer[data_size] = '\0';
     slurped_file slurped_file = {
 	buffer,
 	data_size
@@ -264,14 +265,6 @@ void flag_throw_error(ERROR_TYPE err, std::string_view flag_name)
 	    assert(false && "Unknown error thrown.\n");
 	    exit(1);
     }
-}
-
-void parse_file_normally(const slurped_file& slurped_file, const char* file_base)
-{
-    std::vector<std::string> strings = get_strings_from_file(slurped_file, slurped_file.size, 0); 
-    delete[] slurped_file.data;
-    
-    output_based_on_context(strings, file_base);
 }
 
 void parse_file_in_chunks(const slurped_file& slurped_file)
