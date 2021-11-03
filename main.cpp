@@ -58,7 +58,7 @@ struct slurped_file {
     size_t size;
 };
 
-slurped_file slurp_file_whole(const char* filename);
+slurped_file slurp_file_whole(const char* filename, size_t data_size);
 size_t get_file_size(const char* filename);
 void parse_and_execute_flag(const char* flag);
 void execute_flag(flag_iterator flag, const std::string& value);
@@ -101,7 +101,7 @@ int main(int argc, char* argv[])
     if (file_size > context.MAX_STRINGS_CAP) {
 	parse_file_in_chunks(argv[1]);
     } else {
-	const slurped_file slurped_file = slurp_file_whole(argv[1]);
+	const slurped_file slurped_file = slurp_file_whole(argv[1], file_size);
 	std::vector<std::string> strings = get_strings_from_file(slurped_file);
 	delete[] slurped_file.data;
 
@@ -117,19 +117,9 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-slurped_file slurp_file_whole(const char* filename)
+slurped_file slurp_file_whole(const char* filename, size_t data_size)
 {
-    FILE* in = fopen(filename, "rb");
-
-    if (in == nullptr) {
-	fprintf(stderr, "ERROR: Invalid file provided, make sure the file exists and is valid.\n");
-	exit(1);
-    }
-
-    fseek(in, 0, SEEK_END);
-    size_t data_size = ftell(in);
-    fseek(in, 0, SEEK_SET);
-    
+    FILE* in = fopen(filename, "rb");    
     char* buffer = new char[data_size];
 
     if (buffer == nullptr) {
@@ -137,17 +127,10 @@ slurped_file slurp_file_whole(const char* filename)
 	fclose(in);
 	exit(1);
     }
-    
-    if (fread(buffer, 1, data_size, in) == 0) {
-	fprintf(stderr, "ERROR: Could not read file into memory, make sure the provided file is valid.\n");
-	fclose(in);
-	delete[] buffer;
-	exit(1);
-    }
 
+    fread(buffer, 1, data_size, in);
     fclose(in);
     
-    buffer[data_size] = '\0';
     slurped_file slurped_file = {
 	buffer,
 	data_size
@@ -167,9 +150,13 @@ size_t get_file_size(const char* filename)
 
     fseek(in, 0, SEEK_END);
     size_t data_size = ftell(in);
-    fseek(in, 0, SEEK_SET);
-
     fclose(in);
+
+    if (data_size == 0) {
+	fprintf(stderr, "ERROR: Provided file\'s size is equal to zero.\n");
+	exit(1);
+    }
+    
     return data_size;
 }
 
@@ -268,12 +255,13 @@ void parse_file_in_chunks(const char* filename)
 	fprintf(stderr, "ERROR: Could not allocate enough memory for buffer.\n");
 	exit(1);
     }
+
+    slurped_file slurped_file = {
+	buffer,
+	context.MAX_STRINGS_CAP
+    };
     
     while ((current_size_read = fread(buffer, 1, context.MAX_STRINGS_CAP, file) > 0) && is_running) {
-	slurped_file slurped_file = {
-	    buffer,
-	    context.MAX_STRINGS_CAP
-	};
 	std::vector<std::string> strings = get_strings_from_file(slurped_file);
 	
 	// Contents of large files are only displayed in console/terminal
