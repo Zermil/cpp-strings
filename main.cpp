@@ -61,14 +61,15 @@ struct slurped_file {
     size_t size;
 };
 
-slurped_file slurp(const char* filename);
+slurped_file slurp_file_whole(const char* filename);
+size_t get_file_size(const char* filename);
 void parse_and_execute_flag(const char* flag);
 void execute_flag(flag_iterator flag, const std::string& value);
 void execute_flag(flag_iterator flag);
 void flag_throw_error(ERROR_TYPE err, std::string_view flag_name);
-std::vector<std::string> get_strings_from_file(const slurped_file& slurped_file, size_t size, size_t offset);
-void parse_file_in_chunks(const slurped_file& slurped_file);
-void output_based_on_context(const std::vector<std::string>& strings, const char* file_base);
+std::vector<std::string> get_strings_from_file(const slurped_file& slurped_file, size_t size);
+void parse_file_in_chunks(const char* filename);
+void output_to_file(const std::vector<std::string>& strings, const char* file_base);
 void usage();
 
 inline bool should_be_added(const std::string& current)
@@ -95,24 +96,31 @@ int main(int argc, char* argv[])
 	exit(1);
     }
     
-    const slurped_file slurped_file = slurp(argv[1]);
+    size_t file_size = get_file_size(argv[1]);
     for (int i = 0; i < argc - 2; ++i) {
 	parse_and_execute_flag(argv[i + 2]);
     }
 
-    if (slurped_file.size > context.MAX_STRINGS_CAP) {
-	parse_file_in_chunks(slurped_file);
+    if (file_size > context.MAX_STRINGS_CAP) {
+	parse_file_in_chunks(argv[1]);
     } else {
-	std::vector<std::string> strings = get_strings_from_file(slurped_file, slurped_file.size, 0); 
+	const slurped_file slurped_file = slurp_file_whole(argv[1]);
+	std::vector<std::string> strings = get_strings_from_file(slurped_file, slurped_file.size);
 	delete[] slurped_file.data;
 
-	output_based_on_context(strings, argv[1]);
+	if (context.REQ_OUTPUT) {
+	    output_to_file(strings, argv[1]);
+	} else {
+	    for (const std::string& str : strings) {
+		std::cout << str << '\n';
+	    }
+	}
     }
 
     return 0;
 }
 
-slurped_file slurp(const char* filename)
+slurped_file slurp_file_whole(const char* filename)
 {
     FILE* in = fopen(filename, "rb");
 
@@ -149,6 +157,23 @@ slurped_file slurp(const char* filename)
     };
     
     return slurped_file;
+}
+
+size_t get_file_size(const char* filename)
+{
+    FILE* in = fopen(filename, "rb");
+
+    if (in == nullptr) {
+	std::cerr << "ERROR: Invalid file provided, make sure the file exists and is valid.\n";
+	exit(1);
+    }
+
+    fseek(in, 0, SEEK_END);
+    size_t data_size = ftell(in);
+    fseek(in, 0, SEEK_SET);
+
+    fclose(in);
+    return data_size;
 }
 
 void parse_and_execute_flag(const char* flag)
@@ -233,6 +258,93 @@ void execute_flag(flag_iterator flag)
     }
 }
 
+void parse_file_in_chunks(const char* filename)
+{
+    size_t current_size_read = 0;
+    bool is_running = true;
+    char c;
+    
+    FILE* file = fopen(filename, "rb");
+    char* buffer = new char[context.MAX_STRINGS_CAP];
+
+    if (buffer == nullptr) {
+	printf("ERROR: Could not allocate enough memory for buffer.\n");
+	exit(1);
+    }
+    
+    while ((current_size_read = fread(buffer, 1, context.MAX_STRINGS_CAP, file) > 0) && is_running) {
+	slurped_file slurped_file = {
+	    buffer,
+	    context.MAX_STRINGS_CAP
+	};
+	std::vector<std::string> strings = get_strings_from_file(slurped_file, context.MAX_STRINGS_CAP);
+	
+	// Contents of large files are only displayed in console/terminal
+	for (const std::string& str : strings) {
+	    std::cout << str << '\n';
+	}
+ 
+	printf("File too large, displaying to console/terminal, press [ANY KEY] to continue and [Q] to exit.\n");
+        c = _getch();
+
+	switch (c) {
+	    case 113:
+	    case 81:
+		is_running = false;
+		break;
+	}
+    }
+
+    delete[] buffer;
+    fclose(file);
+}
+
+std::vector<std::string> get_strings_from_file(const slurped_file& slurped_file, size_t size)
+{
+    std::vector<std::string> strings;
+    strings.reserve(size);
+    
+    std::string current = std::string();
+	
+    for (size_t i = 0; i < size; ++i) {
+	const char c = slurped_file.data[i];
+	
+	if (c == '\n' && context.REQ_DISPLAY) {
+	    context.LINE_NUMBER++;
+	}
+
+	if (std::isprint(c)) {
+	    current += c;
+	    continue;
+	}
+    
+	if (should_be_added(current)) {
+	    add_based_on_context(strings, current);
+	}
+	
+	current = std::string();
+    }
+
+    // Catch at EOF
+    if (should_be_added(current)) {
+	add_based_on_context(strings, current);
+    }
+
+    return strings;
+}
+
+void output_to_file(const std::vector<std::string>& strings, const char* file_base)
+{
+    const std::string out_filename = std::string(file_base) + "_out.txt";
+    FILE* file = fopen(out_filename.c_str(), "w");
+	
+    for (const std::string& str : strings) {
+	fprintf(file, "%s\n", str.c_str());
+    }
+
+    fclose(file);
+}
+
 void flag_throw_error(ERROR_TYPE err, std::string_view flag_name)
 {
     switch (err)
@@ -264,88 +376,6 @@ void flag_throw_error(ERROR_TYPE err, std::string_view flag_name)
 	default:
 	    assert(false && "Unknown error thrown.\n");
 	    exit(1);
-    }
-}
-
-void parse_file_in_chunks(const slurped_file& slurped_file)
-{
-    size_t current_size_read = 0;
-    bool is_running = true;
-    char c;
-    
-    while (current_size_read <= slurped_file.size && is_running) {
-	std::vector<std::string> strings = get_strings_from_file(slurped_file, context.MAX_STRINGS_CAP, current_size_read);
-
-	// Contents of large files are only displayed in console/terminal
-	for (const std::string& str : strings) {
-	    std::cout << str << '\n';
-	}
- 
-	std::cout << "File too large, displaying to console/terminal, press \'[ANY KEY]\' to continue and \'[Q]\' to exit.\n";
-        c = _getch();
-
-	switch (c) {
-	    case 113:
-	    case 81:
-		is_running = false;
-		break;
-	}
-	
-	current_size_read += (context.MAX_STRINGS_CAP + 1);
-    }
-
-    delete[] slurped_file.data;
-}
-
-std::vector<std::string> get_strings_from_file(const slurped_file& slurped_file, size_t size, size_t offset)
-{
-    std::vector<std::string> strings;
-    strings.reserve(size);
-    
-    std::string current = std::string();
-	
-    for (size_t i = 0; i < size; ++i) {
-	const char c = slurped_file.data[offset + i];
-	
-	if (c == '\n' && context.REQ_DISPLAY) {
-	    context.LINE_NUMBER++;
-	}
-
-	if (std::isprint(c)) {
-	    current += c;
-	    continue;
-	}
-    
-	if (should_be_added(current)) {
-	    add_based_on_context(strings, current);
-	}
-	
-	current = std::string();
-    }
-
-    // Catch at EOF
-    if (should_be_added(current)) {
-	add_based_on_context(strings, current);
-    }
-
-    return strings;
-}
-
-void output_based_on_context(const std::vector<std::string>& strings, const char* file_base)
-{    
-    if (context.REQ_OUTPUT) {
-	const std::string out_filename = std::string(file_base) + "_out.txt";
-	FILE* file = fopen(out_filename.c_str(), "w");
-	
-	for (const std::string& str : strings) {
-	    fprintf(file, "%s\n", str.c_str());
-	}
-
-	fclose(file);
-    } else {
-	for (const std::string& str : strings) {
-	    std::cout << str << '\n';
-	}
     }
 }
 
