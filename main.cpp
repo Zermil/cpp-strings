@@ -1,8 +1,6 @@
-#include <iostream>
 #include <cstdio>
 #include <cstring>
 #include <string>
-#include <string_view>
 #include <vector>
 #include <cstdlib>
 #include <cassert>
@@ -11,7 +9,6 @@
 #include <unordered_map>
 
 // NOTE(Aiden): There might be a different way to parse flags without map and enum.
-// TODO(Aiden): Instead of loading the entire "big file" into memory, read it also in chunks. 
 
 enum class ERROR_TYPE {
     ERROR_BAD_BEGIN = 0,
@@ -28,19 +25,19 @@ enum class FLAG_TYPE {
     FLAG_DISPLAY,
 };
 
-static const std::unordered_map<std::string_view, FLAG_TYPE> VALUED_FLAGS = {
+static const std::unordered_map<std::string, FLAG_TYPE> VALUED_FLAGS = {
     { "n", FLAG_TYPE::FLAG_LENGTH },
     { "s", FLAG_TYPE::FLAG_SEARCH },
 };
 
-static const std::unordered_map<std::string_view, FLAG_TYPE> VALUELESS_FLAGS = {
+static const std::unordered_map<std::string, FLAG_TYPE> VALUELESS_FLAGS = {
     { "o", FLAG_TYPE::FLAG_OUTPUT },
 
     { "d",        FLAG_TYPE::FLAG_DISPLAY },
     { "-display", FLAG_TYPE::FLAG_DISPLAY },
 };
 
-typedef std::unordered_map<std::string_view, FLAG_TYPE>::const_iterator flag_iterator;
+typedef std::unordered_map<std::string, FLAG_TYPE>::const_iterator flag_iterator;
 
 struct global_context {
     const unsigned int VAL_MIN = 4;
@@ -66,7 +63,7 @@ size_t get_file_size(const char* filename);
 void parse_and_execute_flag(const char* flag);
 void execute_flag(flag_iterator flag, const std::string& value);
 void execute_flag(flag_iterator flag);
-void flag_throw_error(ERROR_TYPE err, std::string_view flag_name);
+void flag_throw_error(ERROR_TYPE err, const std::string& flag_name);
 std::vector<std::string> get_strings_from_file(const slurped_file& slurped_file, size_t size);
 void parse_file_in_chunks(const char* filename);
 void output_to_file(const std::vector<std::string>& strings, const char* file_base);
@@ -112,7 +109,7 @@ int main(int argc, char* argv[])
 	    output_to_file(strings, argv[1]);
 	} else {
 	    for (const std::string& str : strings) {
-		std::cout << str << '\n';
+		printf("%s\n", str.c_str());
 	    }
 	}
     }
@@ -125,7 +122,7 @@ slurped_file slurp_file_whole(const char* filename)
     FILE* in = fopen(filename, "rb");
 
     if (in == nullptr) {
-	std::cerr << "ERROR: Invalid file provided, make sure the file exists and is valid.\n";
+	fprintf(stderr, "ERROR: Invalid file provided, make sure the file exists and is valid.\n");
 	exit(1);
     }
 
@@ -136,13 +133,13 @@ slurped_file slurp_file_whole(const char* filename)
     char* buffer = new char[data_size];
 
     if (buffer == nullptr) {
-	std::cerr << "ERROR: Could not allocate enough memory for buffer.\n";
+	fprintf(stderr, "ERROR: Could not allocate enough memory for buffer.\n");
 	fclose(in);
 	exit(1);
     }
     
     if (fread(buffer, 1, data_size, in) == 0) {
-	std::cerr << "ERROR: Could not read file into memory, make sure the provided file is valid.\n";
+	fprintf(stderr, "ERROR: Could not read file into memory, make sure the provided file is valid.\n");
 	fclose(in);
 	delete[] buffer;
 	exit(1);
@@ -164,7 +161,7 @@ size_t get_file_size(const char* filename)
     FILE* in = fopen(filename, "rb");
 
     if (in == nullptr) {
-	std::cerr << "ERROR: Invalid file provided, make sure the file exists and is valid.\n";
+	fprintf(stderr, "ERROR: Invalid file provided, make sure the file exists and is valid.\n");
 	exit(1);
     }
 
@@ -268,7 +265,7 @@ void parse_file_in_chunks(const char* filename)
     char* buffer = new char[context.MAX_STRINGS_CAP];
 
     if (buffer == nullptr) {
-	printf("ERROR: Could not allocate enough memory for buffer.\n");
+	fprintf(stderr, "ERROR: Could not allocate enough memory for buffer.\n");
 	exit(1);
     }
     
@@ -281,7 +278,7 @@ void parse_file_in_chunks(const char* filename)
 	
 	// Contents of large files are only displayed in console/terminal
 	for (const std::string& str : strings) {
-	    std::cout << str << '\n';
+	    printf("%s\n", str.c_str());
 	}
  
 	printf("File too large, displaying to console/terminal, press [ANY KEY] to continue and [Q] to exit.\n");
@@ -295,8 +292,8 @@ void parse_file_in_chunks(const char* filename)
 	}
     }
 
-    delete[] buffer;
     fclose(file);
+    delete[] buffer;
 }
 
 std::vector<std::string> get_strings_from_file(const slurped_file& slurped_file, size_t size)
@@ -345,32 +342,32 @@ void output_to_file(const std::vector<std::string>& strings, const char* file_ba
     fclose(file);
 }
 
-void flag_throw_error(ERROR_TYPE err, std::string_view flag_name)
+void flag_throw_error(ERROR_TYPE err, const std::string& flag_name)
 {
     switch (err)
     {
 	case ERROR_TYPE::ERROR_BAD_BEGIN:
-	    std::cerr << "ERROR: One of the provided flags does not begin with minus sign -> (\'-\')\n";
-	    std::cerr << "    FLAG: " << flag_name << '\n';
+	    fprintf(stderr, "ERROR: One of the provided flags does not begin with minus sign -> (\'-\')\n");
+	    fprintf(stderr, "    FLAG: %s\n", flag_name.c_str());
 	    break;
 	    
 	case ERROR_TYPE::ERROR_MISSING_EQUAL:
-	    std::cerr << "ERROR: Could not find equal sign -> (\'=\') in one of the provided flags, possible invalid flag.\n";
-	    std::cerr << "    FLAG: " << flag_name << '\n';
+	    fprintf(stderr, "ERROR: Could not find equal sign -> (\'=\') in one of the provided flags, possible invalid flag.\n");
+	    fprintf(stderr, "    FLAG: %s\n", flag_name.c_str());
 	    break;
 	    
 	case ERROR_TYPE::ERROR_VALUE_EMPTY:
-	    std::cerr << "ERROR: One of the provided flags does not have a value associated with it.\n";
-	    std::cerr << "    FLAG: " << flag_name << '\n';
+	    fprintf(stderr, "ERROR: One of the provided flags does not have a value associated with it.\n");
+	    fprintf(stderr, "    FLAG: %s\n", flag_name.c_str());
 	    break;
 	    
 	case ERROR_TYPE::ERROR_RANGE:
-	    std::cerr << "ERROR: Invalid value provided to flag: \"" << flag_name << "\" valid range is between " << context.VAL_MIN << " and " << context.VAL_MAX << '\n';
+	    fprintf(stderr, "ERROR: Invalid value provided to flag: \"%s\" valid range is between %u and %u\n", flag_name.c_str(), context.VAL_MIN, context.VAL_MAX);
 	    break;
 
 	case ERROR_TYPE::ERROR_NO_VALUE_NEEDED:
-	    std::cerr << "ERROR: Provided flag most likely does not need an equal sign -> (\'=\')/value, possible invalid flag.\n";
-	    std::cerr << "    FLAG: " << flag_name << '\n';
+	    fprintf(stderr, "ERROR: Provided flag most likely does not need an equal sign -> (\'=\')/value, possible invalid flag.\n");
+	    fprintf(stderr, "    FLAG: %s\n", flag_name.c_str());
 	    break;
 	    
 	default:
@@ -381,10 +378,10 @@ void flag_throw_error(ERROR_TYPE err, std::string_view flag_name)
 
 void usage()
 {
-    std::cout << "Usage: ./strings [FILE] [OPTIONS]\n";
-    std::cout << "    -n=<number>   -> minimum size of a string to display (min: " << context.VAL_MIN <<  ", max: " << context.VAL_MAX << ")\n";
-    std::cout << "    -s=<string>   -> search for specified string in file\n";
-    std::cout << "    -o            -> outputs everything to \".txt\" file with the name [FILE]_out.txt\n";
-    std::cout << "                     (does not output to terminal/console window)\n";
-    std::cout << "    -d --display  -> display line number, outputs at which line a particular string was found.\n";
+    printf("Usage: ./strings [FILE] [OPTIONS]\n");
+    printf("    -n=<number>   -> minimum size of a string to display (min: %u, max: %u)\n", context.VAL_MIN, context.VAL_MAX);
+    printf("    -s=<string>   -> search for specified string in file\n");
+    printf("    -o            -> outputs everything to \".txt\" file with the name [FILE]_out.txt\n");
+    printf("                     (does not output to terminal/console window)\n");
+    printf("    -d --display  -> display line number, outputs at which line a particular string was found.\n");
 }
