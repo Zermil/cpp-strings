@@ -64,7 +64,7 @@ void parse_and_execute_flag(const char* flag);
 void execute_flag(flag_iterator flag, const std::string& value);
 void execute_flag(flag_iterator flag);
 void flag_throw_error(ERROR_TYPE err, const std::string& flag_name);
-std::vector<std::string> get_strings_from_file(const slurped_file& slurped_file, size_t size);
+std::vector<std::string> get_strings_from_file(const slurped_file& slurped_file);
 void parse_file_in_chunks(const char* filename);
 void output_to_file(const std::vector<std::string>& strings, const char* file_base);
 void usage();
@@ -102,7 +102,7 @@ int main(int argc, char* argv[])
 	parse_file_in_chunks(argv[1]);
     } else {
 	const slurped_file slurped_file = slurp_file_whole(argv[1]);
-	std::vector<std::string> strings = get_strings_from_file(slurped_file, slurped_file.size);
+	std::vector<std::string> strings = get_strings_from_file(slurped_file);
 	delete[] slurped_file.data;
 
 	if (context.REQ_OUTPUT) {
@@ -274,7 +274,7 @@ void parse_file_in_chunks(const char* filename)
 	    buffer,
 	    context.MAX_STRINGS_CAP
 	};
-	std::vector<std::string> strings = get_strings_from_file(slurped_file, context.MAX_STRINGS_CAP);
+	std::vector<std::string> strings = get_strings_from_file(slurped_file);
 	
 	// Contents of large files are only displayed in console/terminal
 	for (const std::string& str : strings) {
@@ -296,14 +296,14 @@ void parse_file_in_chunks(const char* filename)
     delete[] buffer;
 }
 
-std::vector<std::string> get_strings_from_file(const slurped_file& slurped_file, size_t size)
+std::vector<std::string> get_strings_from_file(const slurped_file& slurped_file)
 {
     std::vector<std::string> strings;
-    strings.reserve(size);
+    strings.reserve(slurped_file.size);
     
     std::string current = std::string();
 	
-    for (size_t i = 0; i < size; ++i) {
+    for (size_t i = 0; i < slurped_file.size; ++i) {
 	const char c = slurped_file.data[i];
 	
 	if (c == '\n' && context.REQ_DISPLAY) {
