@@ -9,6 +9,8 @@
 #include <unordered_map>
 
 // NOTE(Aiden): There might be a different way to parse flags without map and enum.
+// TODO(Aiden): Search through files recursivelly
+// TODO(Aiden): Vectors when parsing file in chunks are not needed, you can use sized array
 
 enum class ERROR_TYPE {
     ERROR_BAD_BEGIN = 0,
