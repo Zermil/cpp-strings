@@ -4,9 +4,11 @@
 #include <vector>
 #include <cstdlib>
 #include <cassert>
-#include <conio.h>
 #include <cctype>
 #include <unordered_map>
+
+// Windows specific
+#include <conio.h>
 
 // NOTE(Aiden): There might be a different way to parse flags without map and enum.
 // TODO(Aiden): Search through files recursivelly
@@ -18,6 +20,9 @@ enum class ERROR_TYPE {
     ERROR_VALUE_EMPTY,
     ERROR_RANGE,
     ERROR_NO_VALUE_NEEDED,
+    ERROR_ALLOC,
+    ERROR_SIZE,
+    ERROR_FILE,
 };
 
 enum class FLAG_TYPE {
@@ -50,13 +55,18 @@ struct global_context {
     std::string SEARCH_STR = std::string();
     
     bool REQ_OUTPUT = false;
-
+    
     bool REQ_DISPLAY = false;
-    size_t LINE_NUMBER = 0;
+    unsigned int LINE_NUMBER = 0;
 } context;
 
 struct slurped_file {
     const char* data;
+    size_t size;
+};
+
+struct slurped_strings {
+    std::string* strings;
     size_t size;
 };
 
@@ -65,7 +75,7 @@ size_t get_file_size(const char* filename);
 void parse_and_execute_flag(const char* flag);
 void execute_flag(flag_iterator flag, const std::string& value);
 void execute_flag(flag_iterator flag);
-void flag_throw_error(ERROR_TYPE err, const std::string& flag_name);
+void throw_error(ERROR_TYPE err, const std::string& flag_name = std::string());
 std::vector<std::string> get_strings_from_file(const slurped_file& slurped_file);
 void parse_file_in_chunks(const char* filename);
 void output_to_file(const std::vector<std::string>& strings, const char* file_base);
@@ -121,11 +131,11 @@ int main(int argc, char* argv[])
 
 slurped_file slurp_file_whole(const char* filename, size_t data_size)
 {
-    FILE* in = fopen(filename, "rb");    
+    FILE* in = fopen(filename, "rb");
     char* buffer = new char[data_size];
 
     if (buffer == nullptr) {
-	fprintf(stderr, "ERROR: Could not allocate enough memory for buffer.\n");
+	throw_error(ERROR_TYPE::ERROR_ALLOC);
 	fclose(in);
 	exit(1);
     }
@@ -146,7 +156,7 @@ size_t get_file_size(const char* filename)
     FILE* in = fopen(filename, "rb");
 
     if (in == nullptr) {
-	fprintf(stderr, "ERROR: Invalid file provided, make sure the file exists and is valid.\n");
+	throw_error(ERROR_TYPE::ERROR_FILE);
 	exit(1);
     }
 
@@ -155,7 +165,7 @@ size_t get_file_size(const char* filename)
     fclose(in);
 
     if (data_size == 0) {
-	fprintf(stderr, "ERROR: Provided file\'s size is equal to zero.\n");
+	throw_error(ERROR_TYPE::ERROR_SIZE);
 	exit(1);
     }
     
@@ -165,7 +175,7 @@ size_t get_file_size(const char* filename)
 void parse_and_execute_flag(const char* flag)
 {
     if (flag[0] != '-') {
-	flag_throw_error(ERROR_TYPE::ERROR_BAD_BEGIN, flag);
+	throw_error(ERROR_TYPE::ERROR_BAD_BEGIN, flag);
 	exit(1);
     }
 
@@ -176,7 +186,7 @@ void parse_and_execute_flag(const char* flag)
     bool eq_sign_found = equal_sign_pos != std::string::npos;
 
     if (!eq_sign_found && valueless_flag_it == VALUELESS_FLAGS.end()) {
-	flag_throw_error(ERROR_TYPE::ERROR_MISSING_EQUAL, flag_name);
+	throw_error(ERROR_TYPE::ERROR_MISSING_EQUAL, flag_name);
 	exit(1);
     }
     
@@ -186,12 +196,12 @@ void parse_and_execute_flag(const char* flag)
 	std::string flag_value = flag_name.substr(equal_sign_pos + 1);
 
 	if (valued_flag_it == VALUED_FLAGS.end()) {
-	    flag_throw_error(ERROR_TYPE::ERROR_NO_VALUE_NEEDED, flag_name);
+	    throw_error(ERROR_TYPE::ERROR_NO_VALUE_NEEDED, flag_name);
 	    exit(1);
 	}
 	
 	if (flag_value.empty()) {
-	    flag_throw_error(ERROR_TYPE::ERROR_VALUE_EMPTY, flag_name);
+	    throw_error(ERROR_TYPE::ERROR_VALUE_EMPTY, flag_name);
 	    exit(1);
 	}
 	
@@ -209,7 +219,7 @@ void execute_flag(flag_iterator flag, const std::string& value)
 	    unsigned int new_len = std::atoi(value.c_str());
 	    
 	    if (new_len < context.VAL_MIN || new_len > context.VAL_MAX) {
-		flag_throw_error(ERROR_TYPE::ERROR_RANGE, flag->first);
+		throw_error(ERROR_TYPE::ERROR_RANGE, flag->first);
 		exit(1);
 	    }
 
@@ -254,7 +264,7 @@ void parse_file_in_chunks(const char* filename)
     char* buffer = new char[context.MAX_STRINGS_CAP];
 
     if (buffer == nullptr) {
-	fprintf(stderr, "ERROR: Could not allocate enough memory for buffer.\n");
+	throw_error(ERROR_TYPE::ERROR_ALLOC);
 	exit(1);
     }
 
@@ -272,8 +282,8 @@ void parse_file_in_chunks(const char* filename)
 	}
  
 	printf("File too large, displaying to console/terminal, press [ANY KEY] to continue and [Q] to exit.\n");
-        c = _getch();
-
+	c = _getch();
+	
 	switch (c) {
 	    case 113:
 	    case 81:
@@ -332,7 +342,7 @@ void output_to_file(const std::vector<std::string>& strings, const char* file_ba
     fclose(file);
 }
 
-void flag_throw_error(ERROR_TYPE err, const std::string& flag_name)
+void throw_error(ERROR_TYPE err, const std::string& flag_name)
 {
     switch (err)
     {
@@ -359,6 +369,18 @@ void flag_throw_error(ERROR_TYPE err, const std::string& flag_name)
 	    fprintf(stderr, "ERROR: Provided flag most likely does not need an equal sign -> (\'=\')/value, possible invalid flag.\n");
 	    fprintf(stderr, "    FLAG: %s\n", flag_name.c_str());
 	    break;
+
+	case ERROR_TYPE::ERROR_ALLOC:
+	    fprintf(stderr, "ERROR: Could not allocate enough memory.");
+	    break;
+
+	case ERROR_TYPE::ERROR_SIZE:
+	    fprintf(stderr, "ERROR: Provided file\'s size is not valid. (<= 0)");
+	    break;
+
+	case ERROR_TYPE::ERROR_FILE:
+	    fprintf(stderr, "ERROR: Provided file is invalid or does not exist.");
+	    break;	    	    
 	    
 	default:
 	    assert(false && "Unknown error thrown.\n");
