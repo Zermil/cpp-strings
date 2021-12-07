@@ -1,7 +1,6 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
-#include <vector>
 #include <cstdlib>
 #include <cassert>
 #include <cctype>
@@ -12,7 +11,6 @@
 
 // NOTE(Aiden): There might be a different way to parse flags without map and enum.
 // TODO(Aiden): Search through files recursivelly
-// TODO(Aiden): Vectors when parsing file in chunks are not needed, you can use sized array
 
 enum class ERROR_TYPE {
     ERROR_BAD_BEGIN = 0,
@@ -63,11 +61,15 @@ struct global_context {
 struct slurped_file {
     const char* data;
     size_t size;
+
+    ~slurped_file() { if (data) delete[] data; }
 };
 
 struct slurped_strings {
-    std::string* strings;
+    std::string* data;
     size_t size;
+
+    ~slurped_strings() { if (data) delete[] data; }
 };
 
 slurped_file slurp_file_whole(const char* filename, size_t data_size);
@@ -75,10 +77,10 @@ size_t get_file_size(const char* filename);
 void parse_and_execute_flag(const char* flag);
 void execute_flag(flag_iterator flag, const std::string& value);
 void execute_flag(flag_iterator flag);
-void throw_error(ERROR_TYPE err, const std::string& flag_name = std::string());
-std::vector<std::string> get_strings_from_file(const slurped_file& slurped_file);
+void throw_error(ERROR_TYPE err, const std::string& flag_name = NULL);
+slurped_strings get_strings_from_file(const slurped_file& slurped_file);
 void parse_file_in_chunks(const char* filename);
-void output_to_file(const std::vector<std::string>& strings, const char* file_base);
+void output_to_file(const slurped_strings& strings, const char* filename);
 void usage();
 
 inline bool should_be_added(const std::string& current)
@@ -88,13 +90,13 @@ inline bool should_be_added(const std::string& current)
 	&& current.find(context.SEARCH_STR) != std::string::npos;
 }
 
-inline void add_based_on_context(std::vector<std::string>& strings, std::string& current)
+inline void add_based_on_context(slurped_strings& strings, std::string& current)
 {
     if (context.REQ_DISPLAY) {
 	current += (" -> line: " + std::to_string(context.LINE_NUMBER + 1));
     }
-	
-    strings.emplace_back(current);
+
+    strings.data[strings.size++] = current;
 }
 
 int main(int argc, char* argv[])
@@ -113,15 +115,14 @@ int main(int argc, char* argv[])
     if (file_size > context.MAX_STRINGS_CAP) {
 	parse_file_in_chunks(argv[1]);
     } else {
-	const slurped_file slurped_file = slurp_file_whole(argv[1], file_size);
-	std::vector<std::string> strings = get_strings_from_file(slurped_file);
-	delete[] slurped_file.data;
-
+	slurped_file slurped_file = slurp_file_whole(argv[1], file_size);
+	slurped_strings strings = get_strings_from_file(slurped_file);
+	
 	if (context.REQ_OUTPUT) {
-	    output_to_file(strings, argv[1]);
+	    output_to_file(strings, strcat(argv[1], "_out.txt"));
 	} else {
-	    for (const std::string& str : strings) {
-		printf("%s\n", str.c_str());
+	    for (size_t i = 0; i < strings.size; ++i) {
+		printf("%s\n", strings.data[i].c_str());
 	    }
 	}
     }
@@ -256,7 +257,6 @@ void execute_flag(flag_iterator flag)
 
 void parse_file_in_chunks(const char* filename)
 {
-    size_t current_size_read = 0;
     bool is_running = true;
     char c;
     
@@ -273,14 +273,14 @@ void parse_file_in_chunks(const char* filename)
 	context.MAX_STRINGS_CAP
     };
     
-    while ((current_size_read = fread(buffer, 1, context.MAX_STRINGS_CAP, file) > 0) && is_running) {
-	std::vector<std::string> strings = get_strings_from_file(slurped_file);
+    while ((fread(buffer, 1, context.MAX_STRINGS_CAP, file) > 0) && is_running) {
+	slurped_strings strings = get_strings_from_file(slurped_file);
 	
 	// Contents of large files are only displayed in console/terminal
-	for (const std::string& str : strings) {
-	    printf("%s\n", str.c_str());
+	for (size_t i = 0; i < strings.size; ++i) {
+	    printf("%s\n", strings.data[i].c_str());
 	}
- 
+	
 	printf("File too large, displaying to console/terminal, press [ANY KEY] to continue and [Q] to exit.\n");
 	c = _getch();
 	
@@ -296,12 +296,11 @@ void parse_file_in_chunks(const char* filename)
     delete[] buffer;
 }
 
-std::vector<std::string> get_strings_from_file(const slurped_file& slurped_file)
+slurped_strings get_strings_from_file(const slurped_file& slurped_file)
 {
-    std::vector<std::string> strings;
-    strings.reserve(slurped_file.size);
-    
+    slurped_strings strings = {};
     std::string current = std::string();
+    strings.data = new std::string[slurped_file.size];
 	
     for (size_t i = 0; i < slurped_file.size; ++i) {
 	const char c = slurped_file.data[i];
@@ -330,13 +329,12 @@ std::vector<std::string> get_strings_from_file(const slurped_file& slurped_file)
     return strings;
 }
 
-void output_to_file(const std::vector<std::string>& strings, const char* file_base)
+void output_to_file(const slurped_strings& strings, const char* filename)
 {
-    const std::string out_filename = std::string(file_base) + "_out.txt";
-    FILE* file = fopen(out_filename.c_str(), "w");
+    FILE* file = fopen(filename, "w");
 	
-    for (const std::string& str : strings) {
-	fprintf(file, "%s\n", str.c_str());
+    for (size_t i = 0; i < strings.size; ++i) {
+	fprintf(file, "%s\n", strings.data[i].c_str());
     }
 
     fclose(file);
