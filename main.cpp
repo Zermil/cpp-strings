@@ -10,7 +10,6 @@
 #include <conio.h>
 
 // NOTE(Aiden): There might be a different way to parse flags without map and enum.
-// TODO(Aiden): Search through files recursivelly
 
 enum class ERROR_TYPE {
     ERROR_BAD_BEGIN = 0,
@@ -28,6 +27,7 @@ enum class FLAG_TYPE {
     FLAG_SEARCH,
     FLAG_OUTPUT,
     FLAG_DISPLAY,
+    FLAG_REC,
 };
 
 static const std::unordered_map<std::string, FLAG_TYPE> VALUED_FLAGS = {
@@ -40,6 +40,8 @@ static const std::unordered_map<std::string, FLAG_TYPE> VALUELESS_FLAGS = {
 
     { "d",        FLAG_TYPE::FLAG_DISPLAY },
     { "-display", FLAG_TYPE::FLAG_DISPLAY },
+
+    { "r", FLAG_TYPE::FLAG_REC },
 };
 
 typedef std::unordered_map<std::string, FLAG_TYPE>::const_iterator flag_iterator;
@@ -48,6 +50,7 @@ struct global_context {
     const unsigned int VAL_MIN = 4;
     const unsigned int VAL_MAX = 256;
     const unsigned int MAX_STRINGS_CAP = 640000; // Should be enough for anybody.
+    const unsigned int MAX_SUBDIRS = 16;
 
     unsigned int SEARCH_LEN = 4;
     std::string SEARCH_STR = std::string();
@@ -133,6 +136,12 @@ int main(int argc, char* argv[])
 slurped_file slurp_file_whole(const char* filename, size_t data_size)
 {
     FILE* in = fopen(filename, "rb");
+
+    if (in == nullptr) {
+	throw_error(ERROR_TYPE::ERROR_FILE);
+	exit(1);
+    }
+    
     char* buffer = new char[data_size];
 
     if (buffer == nullptr) {
@@ -248,6 +257,10 @@ void execute_flag(flag_iterator flag)
 	case FLAG_TYPE::FLAG_DISPLAY:
 	    context.REQ_DISPLAY = true;
 	    break;
+
+	case FLAG_TYPE::FLAG_REC:
+	    assert(false && "TODO: File recursion");
+	    break;
 	    
 	default:
 	    assert(false && "Unrecognized flag provided.\n");
@@ -261,10 +274,17 @@ void parse_file_in_chunks(const char* filename)
     char c;
     
     FILE* file = fopen(filename, "rb");
+
+    if (file == nullptr) {
+	throw_error(ERROR_TYPE::ERROR_FILE);
+	exit(1);
+    }    
+    
     char* buffer = new char[context.MAX_STRINGS_CAP];
 
     if (buffer == nullptr) {
 	throw_error(ERROR_TYPE::ERROR_ALLOC);
+	fclose(file);
 	exit(1);
     }
 
