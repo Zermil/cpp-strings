@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cctype>
 #include <unordered_map>
+#include <filesystem>
 
 // Windows specific
 #include <conio.h>
@@ -50,7 +51,6 @@ struct global_context {
     const unsigned int VAL_MIN = 4;
     const unsigned int VAL_MAX = 256;
     const unsigned int MAX_STRINGS_CAP = 640000; // Should be enough for anybody.
-    const unsigned int MAX_SUBDIRS = 16;
 
     unsigned int SEARCH_LEN = 4;
     std::string SEARCH_STR = std::string();
@@ -59,6 +59,8 @@ struct global_context {
     
     bool REQ_DISPLAY = false;
     unsigned int LINE_NUMBER = 0;
+    
+    unsigned int MAX_SUBDIRS = 16;
 } context;
 
 struct slurped_file {
@@ -84,6 +86,8 @@ void throw_error(ERROR_TYPE err, const std::string& flag_name = NULL);
 slurped_strings get_strings_from_file(const slurped_file& slurped_file);
 void parse_file_in_chunks(const char* filename);
 void output_to_file(const slurped_strings& strings, const char* filename);
+void output_based_on_context(const slurped_strings& strings, const char* filename);
+bool file_exists(const char* filename);
 void usage();
 
 inline bool should_be_added(const std::string& current)
@@ -114,20 +118,20 @@ int main(int argc, char* argv[])
     for (int i = 0; i < argc - 2; ++i) {
 	parse_and_execute_flag(argv[i + 2]);
     }
+    
+    std::string out = std::string(argv[1]) + "_out.txt";
+    if (context.REQ_OUTPUT && file_exists(out.c_str())) {
+	printf("INFO: Requested output but corresponding '_out.txt' file already exists, it's contents will be replaced.\n");
+	remove(out.c_str());
+    }
 
     if (file_size > context.MAX_STRINGS_CAP) {
 	parse_file_in_chunks(argv[1]);
     } else {
 	slurped_file slurped_file = slurp_file_whole(argv[1], file_size);
 	slurped_strings strings = get_strings_from_file(slurped_file);
-	
-	if (context.REQ_OUTPUT) {
-	    output_to_file(strings, strcat(argv[1], "_out.txt"));
-	} else {
-	    for (size_t i = 0; i < strings.size; ++i) {
-		printf("%s\n", strings.data[i].c_str());
-	    }
-	}
+    
+	output_based_on_context(strings, argv[1]);
     }
 
     return 0;
@@ -270,10 +274,11 @@ void execute_flag(flag_iterator flag)
 
 void parse_file_in_chunks(const char* filename)
 {
-    bool is_running = true;
-    char c;
+    const size_t full_size = get_file_size(filename);
     
+    bool is_running = true;
     FILE* file = fopen(filename, "rb");
+    int iteration_count = 0;
 
     if (file == nullptr) {
 	throw_error(ERROR_TYPE::ERROR_FILE);
@@ -295,20 +300,22 @@ void parse_file_in_chunks(const char* filename)
     
     while ((fread(buffer, 1, context.MAX_STRINGS_CAP, file) > 0) && is_running) {
 	slurped_strings strings = get_strings_from_file(slurped_file);
+	output_based_on_context(strings, filename);
 	
-	// Contents of large files are only displayed in console/terminal
-	for (size_t i = 0; i < strings.size; ++i) {
-	    printf("%s\n", strings.data[i].c_str());
-	}
+	if (!context.REQ_OUTPUT) {
+	    printf("File too large, displaying to console/terminal, press [ANY KEY] to continue and [Q] to exit.\n");
+	    char c = _getch();
 	
-	printf("File too large, displaying to console/terminal, press [ANY KEY] to continue and [Q] to exit.\n");
-	c = _getch();
-	
-	switch (c) {
-	    case 113:
-	    case 81:
-		is_running = false;
-		break;
+	    switch (c) {
+		case 113:
+		case 81:
+		    is_running = false;
+		    break;
+	    }
+	} else {
+	    // Thank you C++ very cool.
+	    printf("\rWritten: %d%% of the file",
+		static_cast<int>((static_cast<double>(++iteration_count * context.MAX_STRINGS_CAP) / full_size) * 100));
 	}
     }
 
@@ -351,8 +358,8 @@ slurped_strings get_strings_from_file(const slurped_file& slurped_file)
 
 void output_to_file(const slurped_strings& strings, const char* filename)
 {
-    FILE* file = fopen(filename, "w");
-	
+    FILE* file = fopen(filename, "a");
+    
     for (size_t i = 0; i < strings.size; ++i) {
 	fprintf(file, "%s\n", strings.data[i].c_str());
     }
@@ -360,17 +367,39 @@ void output_to_file(const slurped_strings& strings, const char* filename)
     fclose(file);
 }
 
+void output_based_on_context(const slurped_strings& strings, const char* filename)
+{
+    if (context.REQ_OUTPUT) {
+	std::string output_file = std::string(filename) + "_out.txt";
+	output_to_file(strings, output_file.c_str());
+    } else {
+	for (size_t i = 0; i < strings.size; ++i) {
+	    printf("%s\n", strings.data[i].c_str());
+	}
+    }
+}
+
+bool file_exists(const char* filename)
+{
+    if (FILE* file = fopen(filename, "rb")) {
+	fclose(file);
+	return true;
+    }
+    
+    return false;
+}
+
 void throw_error(ERROR_TYPE err, const std::string& flag_name)
 {
     switch (err)
     {
 	case ERROR_TYPE::ERROR_BAD_BEGIN:
-	    fprintf(stderr, "ERROR: One of the provided flags does not begin with minus sign -> (\'-\')\n");
+	    fprintf(stderr, "ERROR: One of the provided flags does not begin with minus sign -> ('-')\n");
 	    fprintf(stderr, "    FLAG: %s\n", flag_name.c_str());
 	    break;
 	    
 	case ERROR_TYPE::ERROR_MISSING_EQUAL:
-	    fprintf(stderr, "ERROR: Could not find equal sign -> (\'=\') in one of the provided flags, possible invalid flag.\n");
+	    fprintf(stderr, "ERROR: Could not find equal sign -> ('=') in one of the provided flags, possible invalid flag.\n");
 	    fprintf(stderr, "    FLAG: %s\n", flag_name.c_str());
 	    break;
 	    
@@ -384,7 +413,7 @@ void throw_error(ERROR_TYPE err, const std::string& flag_name)
 	    break;
 
 	case ERROR_TYPE::ERROR_NO_VALUE_NEEDED:
-	    fprintf(stderr, "ERROR: Provided flag most likely does not need an equal sign -> (\'=\')/value, possible invalid flag.\n");
+	    fprintf(stderr, "ERROR: Provided flag most likely does not need an equal sign -> ('=')/value, possible invalid flag.\n");
 	    fprintf(stderr, "    FLAG: %s\n", flag_name.c_str());
 	    break;
 
@@ -393,12 +422,12 @@ void throw_error(ERROR_TYPE err, const std::string& flag_name)
 	    break;
 
 	case ERROR_TYPE::ERROR_SIZE:
-	    fprintf(stderr, "ERROR: Provided file\'s size is not valid. (<= 0)");
+	    fprintf(stderr, "ERROR: Provided file's size is not valid. (<= 0)");
 	    break;
 
 	case ERROR_TYPE::ERROR_FILE:
 	    fprintf(stderr, "ERROR: Provided file is invalid or does not exist.");
-	    break;	    	    
+	    break;
 	    
 	default:
 	    assert(false && "Unknown error thrown.\n");
