@@ -10,7 +10,7 @@ Options:\
 `-s=[search_string]` -> output only the strings that contain [search_string]\
 `-o` -> don't output to console, but to text file instead (text file's name is [FILE]_out.txt)\
 `-d --display` -> display line number for particular string (where it was found)\
-`-r` -> Recursively parse all the files in (parent) directory and subdirectories
+`-r` -> recursively parse all the files in (parent) directory and subdirectories
 
 ### Compile
 ```console
@@ -19,5 +19,5 @@ Options:\
 
 ### Run
 ```console
-> strings test.txt -n=6 -ser=123
+> strings test.txt -n=6 -s=123
 ```
