@@ -69,14 +69,14 @@ struct slurped_file {
     const char* data;
     size_t size;
 
-    ~slurped_file() { if (data) delete[] data; }
+    ~slurped_file() { delete[] data; }
 };
 
 struct slurped_strings {
     std::string* data;
     size_t size;
 
-    ~slurped_strings() { if (data) delete[] data; }
+    ~slurped_strings() { delete[] data; }
 };
 
 slurped_file slurp_file_whole(const char* filename, size_t data_size);
@@ -484,4 +484,5 @@ void usage()
     printf("    -o            -> outputs everything to \".txt\" file with the name [FILE]_out.txt\n");
     printf("                     (does not output to terminal/console window)\n");
     printf("    -d --display  -> display line number, outputs at which line a particular string was found.\n");
+    printf("    -r            -> recursively parse all the files in (parent) directory and subdirectories.\n");
 }
