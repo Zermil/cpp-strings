@@ -22,6 +22,7 @@ enum class ERROR_TYPE {
     ERROR_ALLOC,
     ERROR_SIZE,
     ERROR_FILE,
+    ERROR_RECURSIVE,
 };
 
 enum class FLAG_TYPE {
@@ -405,11 +406,17 @@ void parse_linear(const char* filename)
 
 void parse_recursive(const char* filename)
 {
+    std::filesystem::path path = std::string(filename);
+    
     if (context.MAX_SUBDIRS == 0)
         return;
     
-    std::filesystem::path path = std::string(filename);
     if (path.has_extension()) {
+        if (!path.has_parent_path()) {
+            throw_error(ERROR_TYPE::ERROR_RECURSIVE);
+            exit(1);
+        }
+        
         path = path.parent_path();
     }
 
@@ -469,6 +476,10 @@ void throw_error(ERROR_TYPE err, const std::string& flag_name)
 
         case ERROR_TYPE::ERROR_FILE:
             fprintf(stderr, "ERROR: Provided file is invalid or does not exist.\n");
+            break;
+
+        case ERROR_TYPE::ERROR_RECURSIVE:
+            fprintf(stderr, "ERROR: When using -r make sure your relative/absolute path is correct (either ./ or ./[FILENAME]).\n");
             break;
         
         default:
