@@ -295,29 +295,38 @@ void parse_file_in_chunks(const char* filename)
         output_based_on_context(strings, filename);
     
         if (!context.REQ_OUTPUT) {
-            printf("File too large, displaying to console/terminal, press [ANY KEY] to continue and [Q] to exit.\n");
+            printf("File too large, displaying to console/terminal in pages, press [ANY KEY] to continue and [Q] to exit.\n");
             char c = _getch();
     
             switch (c) {
                 case 113:
-                case 81:
+                case 81: {
                     is_running = false;
-                    break;
+                    delete[] strings.data; 
+                } break;
             }
         } else {
             // Thank you C++ very cool.
             printf("\rWritten: %d%% of the file",
                    static_cast<int>((static_cast<double>(++iteration_count * context.MAX_STRINGS_CAP) / full_size) * 100));
         }
+
+        delete[] strings.data; 
     }
 
     fclose(file);
+    delete[] buffer;
 }
 
 slurped_strings get_strings_from_file(const slurped_file& slurped_file)
 {
     slurped_strings strings = {};
     strings.data = new std::string[slurped_file.size];
+
+    if (strings.data == nullptr) {
+        throw_error(ERROR_TYPE::ERROR_ALLOC);
+        exit(1);
+    } 
 
     std::string current = std::string();
     
